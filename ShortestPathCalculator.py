@@ -2,12 +2,17 @@ import json
 import sys
 
 nodes_and_connections = json.load(open("paths.json"))
-# Necessary for get_cardinal_directions_of_path
+# Necessary for get_cardinal_directions_of_path.
 letters_from_north_to_south = ["A", "C", "D", "E", "F", "G", "B"]
+# Necessary to calculate rotations.
+cardinal_directions = ["North", "East", "South", "West"]
+turns = ["Forward", "Turn Left", "Backward", "Turn Right"]
+# This is the orientation to physical robot has in the real world.
+current_orientation = cardinal_directions[0]
 
 
 # Returns all nodes for the shortest path as an array.
-def get_shortest_path_from_to(start_node, target_node):
+def get_shortest_route_from_to(start_node, target_node):
     previous_nodes, shortest_path_to = dijkstra_algorithm(start_node)
     path = []
     node = target_node
@@ -15,9 +20,7 @@ def get_shortest_path_from_to(start_node, target_node):
         path.append(node)
         node = previous_nodes[node]
     path.append(start_node)
-    path = reversed(path)
-    print(" -> ".join(path))
-    return path
+    return list(reversed(path))
 
 
 # Removes the path between two nodes from nodes_and_connections.
@@ -26,8 +29,9 @@ def remove_path(from_node, to_node):
     del nodes_and_connections[to_node][from_node]
 
 
+# Calculates the shortest path using an implementation of Dijkstra's algorithm I stole from the internet.
+# Source: https://www.udacity.com/blog/2021/10/implementing-dijkstras-algorithm-in-python.html
 def dijkstra_algorithm(start_node):
-    # https://www.udacity.com/blog/2021/10/implementing-dijkstras-algorithm-in-python.html
     unvisited_nodes = list(nodes_and_connections.keys())
     shortest_path_to = {}
     previous_nodes = {}
@@ -55,21 +59,53 @@ def dijkstra_algorithm(start_node):
     return previous_nodes, shortest_path_to
 
 
+# Calculates the cardinal direction two neighboring nodes have to each other.
 def get_cardinal_direction_of_path(start_node, end_node):
     letters = [start_node[0], end_node[0]]
     numbers = [start_node[1], end_node[1]]
     # Horizontal:
     if letters[0] is letters[1]:
-        if numbers[0] > numbers[1]:
+        if numbers[0] < numbers[1]:
             return "East"
         else:
             return "West"
     # Vertical:
     else:
-        if letters_from_north_to_south.index(letters[0]) >letters_from_north_to_south.index(letters[1]):
+        if letters_from_north_to_south.index(letters[0]) < letters_from_north_to_south.index(letters[1]):
             return "South"
         else:
             return "North"
+
+
+# Calculates the cardinal directions of all the connections in the final route.
+def get_cardinal_directions_of_route(nodes):
+    all_cardinal_directions = []
+    for x in range(0, len(nodes) - 1):
+        all_cardinal_directions.append(get_cardinal_direction_of_path(nodes[x], nodes[x+1]))
+    return all_cardinal_directions
+
+
+# Calculates the turn the robot will have to make in order to face the direction of the next path.
+# robot_orientation is the expected orientation the robot would have at this point in time,
+#   not the actual physical direction.
+def get_turn(path_direction, robot_orientation):
+    path_orientation_value = cardinal_directions.index(path_direction)
+    robot_orientation_value = cardinal_directions.index(robot_orientation)
+    # Attaches a value between 0 and 3 to both direction and turn.
+    # North -> North = 0-0 = 0 -> forward = 0
+    # North -> South = 0-2 = -2 -> backward = -2 = +2
+    # North -> East = 0-1 = -1 -> right = -1 = +3
+    # North -> West = 0-3 = -3 -> left = -3 = +1
+    return turns[(robot_orientation_value - path_orientation_value) % 4]
+
+
+def get_turns_of_route(route_directions):
+    orders = []
+    hypothetical_orientation = current_orientation
+    for cardinal_direction in route_directions:
+        orders.append(get_turn(cardinal_direction, hypothetical_orientation))
+        hypothetical_orientation = cardinal_direction
+    return orders
 
 
 # Just for manual tests, please ignore.
@@ -94,8 +130,8 @@ remove_path("E1", "E2")
 remove_path("E1", "D1")
 remove_path("E2", "D2")
 remove_path("C5", "C4")
-get_shortest_path_from_to("B4", "A3")
-print(get_cardinal_direction_of_path("A1", "A2"))
-print(get_cardinal_direction_of_path("C2", "D2"))
-print(get_cardinal_direction_of_path("A3", "A2"))
-print(get_cardinal_direction_of_path("E2", "D2"))
+route = get_shortest_route_from_to("B4", "A3")
+directions = get_cardinal_directions_of_route(route)
+print(route)
+print(directions)
+print(get_turns_of_route(directions))
